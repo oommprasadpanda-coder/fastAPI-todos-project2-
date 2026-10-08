@@ -1,123 +1,142 @@
-from fastapi import FastAPI , Depends , HTTPException , Query
-from sqlalchemy.orm import Session
-from database import engine , sessionLocal
+from database import engine , Base , SessionLocal
 import models , schemas
-from auth import create_token , verify_token 
+from fastapi import FastAPI , Depends  , HTTPException
+from sqlalchemy.orm import Session 
+from auth import verify_token , create_token 
 
 
-models.Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI()
 
+Base.metadata.create_all(bind=engine)
+
+
 def get_db():
-    db = sessionLocal()
-    try:
+    db =  SessionLocal()
+    try: 
         yield db 
-    finally :
+    finally:
         db.close()
 
-
-
-@app.get("/home")
-def get_api():
-    return {
-        "message" : "blog api  started"
-    }
-
+#login
 @app.post("/login")
 def login_api():
     return {
-        "access_token" : create_token({"user" : 'bitun'}),
-        "token_type" :"bearer"
+        "access_token" : create_token({"user" : 'admin'}),
+        "token_type" : "bearer"
     }
 
-@app.post("/blogs" , response_model=schemas.BlogResponse)
+#create (protected)
+@app.post("/todos" , response_model=schemas.TodoResponse)
+def create_todo(todo : schemas.TodoCreate , db: Session = Depends(get_db), user =  Depends (verify_token)):
 
-def create_blog(blog: schemas.BlogCreate , db: Session = Depends(get_db) , user = Depends(verify_token)):
+    new_todo = models.Todo(
+        title = todo.title,
+        description = todo.description,
+        completed = todo.completed,
+        priority = todo.priority
 
-    new_blog = models.Blog(title=blog.title , content = blog.content)
+     )
 
-    db.add(new_blog)
+    db.add(new_todo)
     db.commit()
-    db.refresh(new_blog)
+    db.refresh(new_todo)
 
-    return new_blog
+    return new_todo 
 
-@app.get("/blogs")
-def get_blogs(
-    page : int = 1,
-    limit : int = 5,
-    search : str = Query(default=""),
-    db: Session = Depends (get_db)
+
+#read all 
+@app.get("/todosall" ,  response_model=list[schemas.TodoResponse])
+def real_all (db : Session = Depends(get_db)):
+
+    todos = db.query(models.Todo).all()
+
+    if not todos :
+        raise HTTPException(
+            status_code=404,
+            detail="todo not found"
+        )
+
+    return todos
+
+
+
+#read one nby one
+@app.get("/readone/{id}", response_model=schemas.TodoResponse )
+def read_one (id : int , db : Session = Depends(get_db)):
+
+    todo = db.query(models.Todo).filter(models.Todo.id == id).first()
+
+    if not todo :
+        raise HTTPException(
+            status_code=404,
+            detail="todo not found"
+        )
+
+    return todo
+
+@app.put("/update/{id}",response_model=schemas.TodoResponse)
+
+def update_one(
+    id : int,
+    todo_data : schemas.TodoCreate,
+    db : Session = Depends(get_db),
+    data = Depends(verify_token)
 ):
+
+    todo = db.query(models.Todo).filter(models.Todo.id == id).first()
+
+    if not todo : 
+        raise HTTPException(
+            status_code=404,
+            detail="toos not found"
+        )
+
+    todo.title = todo_data.title
+    todo.description = todo_data.description
+    todo.completed = todo_data.completed
+    todo.priority = todo_data.priority
+
+    db.commit()
+    db.refresh(todo)
+
+    return todo
+
+@app.get("/todo")
+def read_todo():
+    return {
+        "message" : "todo working sucessfully "
+    }
+
+#delete todo api 
+@app.delete("/deleteTodo/{id}")
+def delete_todo(id : int , db : Session = Depends(get_db)):
+
+    todo = db.query(models.Todo).filter(models.Todo.id == id).first()
+
+    if not todo :
+        raise HTTPException(
+            status_code=404,
+            detail="Todo Not Found"
+        )
+
+    db.delete(todo)
+    db.commit()
+
+    return {
+        "message" : "todo deleted sucessfully"
+    }
+
+
+
+
+
+
+
+
+
     
-    query = db.query(models.Blog)
 
-    if search : 
-        query = query.filter(
-            models.Blog.title.ilike(f"%{search}%")
-        )
-
-
-    total = query.count()
-    start = (page - 1) * limit
-    blogs = query.offset(start).limit(limit).all()
-
-    return {
-        "page" : page,  
-        "limit" : limit,
-        "total" : total,
-        "data" : blogs
-    }
-        
-
-@app.get("/blogs/{id}" , response_model=schemas.BlogResponse)
-def get_blogs(id: int , db: Session = Depends(get_db) , user = Depends(verify_token)):
-    one_get = db.query(models.Blog).filter(models.Blog.id == id).first()
-
-    if not one_get :
-        raise HTTPException(
-            status_code=404,
-            detail="blog not found"
-
-         )
-
-
-    return one_get
-
-@app.put("/updte/{id}" , response_model=schemas.BlogResponse)
-def update_blogs(id : int , Blog : schemas.BlogCreate , db : Session = Depends(get_db)):
-    update_blogs = db.query(models.Blog).filter(models.Blog.id == id).first()
-
-    if not update_blogs:
-        raise HTTPException(
-            status_code=404,
-            detail="blog not found"
-        )
-    update_blogs.title = Blog.title
-    update_blogs.content = Blog.content
-
-    db.commit()
-    db.refresh(update_blogs)
-
-
-
-    return update_blogs
-
-@app.delete("/blogs/{id}")
-def delete_blogs(id : int , db: Session = Depends(get_db)):
-    delete_blog = db.query(models.Blog).filter(models.Blog.id == id).first()
-
-    if not delete_blog:
-        raise HTTPException(
-            status_code=404,
-            detail="blog not found"
-        )
-    db.delete(delete_blog)
-    db.commit()
-
-    return {
-        "message" : "blog deleted sucessfully"
-    }
 
 

@@ -1,15 +1,23 @@
 from pydantic import BaseModel 
 
-class BlogCreate(BaseModel):
-    title : str 
-    content : str 
 
-class BlogResponse(BaseModel):
+
+class TodoCreate(BaseModel):
+    title : str 
+    description : str | None = None
+    completed : bool = False
+    priority : int = 1 
+
+class TodoResponse(BaseModel):
+
     id : int
     title : str 
-    content : str 
+    description : str | None = None
+    completed : bool 
+    priority : int 
 
-    class config :
+
+    class Config :
         from_attributes = True 
 
 

@@ -1,12 +1,15 @@
-from sqlalchemy import Column , Integer , String , Text
-from database import Base
+from sqlalchemy import Column , String , Integer , Boolean
+from database import Base 
 
-class Blog(Base):
+class Todo(Base):
+    __tablename__= "todos"
 
-    __tablename__ = "blogdb"
+    id = Column(Integer , primary_key=True , index= True )
+    title = Column(String ,nullable=False )
+    description = Column(String , nullable=True)
+    completed = Column(Boolean , default=False)
+    priority = Column(Integer , default=1)
 
-    id = Column(Integer , primary_key=True , index=True)
-    title = Column(String)
-    content = Column(Text)
 
-    
+
+
